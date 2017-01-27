@@ -108,13 +108,13 @@ void setup() {
     Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
 
     // wait for ready
-    Serial.println(F("\nSend any character to begin DMP programming and demo: "));
+    //Serial.println(F("\nSend any character to begin DMP programming and demo: "));
     /*while (Serial.available() && Serial.read()); // empty buffer
     while (!Serial.available());                 // wait for data
     while (Serial.available() && Serial.read()); // empty buffer again*/
 
     // load and configure the DMP
-    Serial.println(F("Initializing DMP..."));
+    //Serial.println(F("Initializing DMP..."));
     devStatus = mpu.dmpInitialize();
 
     // supply your own gyro offsets here, scaled for min sensitivity
@@ -139,7 +139,7 @@ void setup() {
         mpuIntStatus = mpu.getIntStatus();
 
         // set our DMP Ready flag so the main loop() function knows it's okay to use it
-        Serial.println(F("DMP ready! Waiting for first interrupt..."));
+        //Serial.println(F("DMP ready! Waiting for first interrupt..."));
         dmpReady = true;
 
         // get expected DMP packet size for later comparison
@@ -173,13 +173,13 @@ void setup() {
 void loop() 
 {
   static int    SubLoop, Demand;
-  static long   checktime;
+  static unsigned long   checktime;
   static byte   Moving;
-  static float  Heading,HeadingTgt,oHeading,kp,ki,kd;
+  static float  Heading,HeadingTgt,oHeading=-999999,kp,ki,kd;
   static byte Command;
   float Reduction;
   static bool btn,old_btn,init=1;
-  int i;
+  int i,mtr_a,mtr_b;
   SubLoop++;
 
     
@@ -201,8 +201,8 @@ void loop()
   if(init){
     GetHeading(&Heading);        
     // check it's stabilised
-    if(millis() > checktime){
-      checktime += 4000;
+    if((millis() > checktime)){
+      checktime = millis() + 2000;
       if(fabs(oHeading - Heading) < .8) {
         Serial.println("Done checking IMU!"); // ok
         init=0;
@@ -211,6 +211,9 @@ void loop()
       }
       oHeading = Heading;
     }
+    // Null motors
+    analogWrite(10,0);
+    analogWrite(11,0);
    
   }else{  
   // =====================================================
@@ -231,9 +234,26 @@ void loop()
     GetHeading(&Heading);               					// Get heading        
     PID(Heading,HeadingTgt,&Demand,kp,ki, kd  ,Moving);	// If not moving zero integral
     
-    // Neet thrus calculation
-    analogWrite(10,Demand / 4);
-    analogWrite(11,Demand / 4);
+    // ==== motor drive =========
+    
+    // Do rotation kinematics...
+    // demand = +/- 1000
+    mtr_a = 30; // fixed rate descent
+    mtr_a += Demand / 50.0; // +/-20
+    mtr_b = 30; // fixed rate descent
+    mtr_b -= Demand / 50.0;
+    
+    // impose pwr limit
+    if(!Moving){
+      mtr_a = 0;
+      mtr_b = 0; // f
+    }else{
+      LimitInt(&mtr_a,0,100);
+      LimitInt(&mtr_b,0,100);
+    }
+    
+    analogWrite(10,mtr_a);
+    analogWrite(11,mtr_b);
   }  
   // =====================================================
    
@@ -243,18 +263,21 @@ void loop()
     kp = analogRead(2) / 10.0;
     ki = analogRead(1) / 100.0;
     kd = analogRead(0);
-    Serial.print(">> ");
+    Serial.print("\tHGG>  ");
     Serial.print(Heading);
     Serial.print(" , ");
+    Serial.print(HeadingTgt);
+    Serial.print("\tKPID>  ");
     Serial.print(kp);
     Serial.print(" , ");
     Serial.print(ki);
     Serial.print(" , ");
     Serial.print(kd);
+    Serial.print("\t\tMOTOR>  ");
+    Serial.print(mtr_a);
     Serial.print(" , ");
-    Serial.print(Moving);
-    Serial.print(" , ");
-    Serial.println(HeadingTgt);
+    Serial.println(mtr_b);
+    
     
     blinkState = !blinkState;
     digitalWrite(LED_PIN, blinkState);
