@@ -68,11 +68,6 @@ uint8_t teapotPacket[14] = { '$', 0x02, 0,0, 0,0, 0,0, 0,0, 0x00, 0x00, '\r', '\
 #define CRASH 2
 #define CANCEL 3
 
-#define UP 5
-#define DN 6
-#define LEFT 7
-#define RIGHT 8
-#define GO 9
 
 //
 // ISR
@@ -120,12 +115,14 @@ void setup() {
     // supply your own gyro offsets here, scaled for min sensitivity
     // Note - use the 'raw' program to get these.  
     // Expect an unreliable or long startup if you don't bother!!! 
-    mpu.setXGyroOffset(66);
-    mpu.setYGyroOffset(25);
-    mpu.setZGyroOffset(45);
-    mpu.setXAccelOffset(-1640);
-    mpu.setYAccelOffset(1240);
-    mpu.setZAccelOffset(1200);
+
+    mpu.setXAccelOffset(1620);
+    mpu.setYAccelOffset(1411);
+    mpu.setZAccelOffset(1440);//16384
+   
+    mpu.setXGyroOffset(161);
+    mpu.setYGyroOffset(2);
+    mpu.setZGyroOffset(24);
     
     // make sure it worked (returns 0 if so)
     if (devStatus == 0) {
@@ -176,10 +173,8 @@ void loop()
   static unsigned long   checktime;
   static byte   Moving;
   static float  Heading,HeadingTgt,oHeading=-999999,kp,ki,kd;
-  static byte Command;
-  float Reduction;
   static bool btn,old_btn,init=1;
-  int i,mtr_a,mtr_b;
+  int mtr_a,mtr_b;
   SubLoop++;
 
     
@@ -259,7 +254,7 @@ void loop()
    
    
   // 1Hz  blink LED to indicate activity
-  if(((SubLoop % 100) == 0) && (init ==0))  { 
+  if(((SubLoop % 250) == 0) && (init ==0))  { 
     kp = analogRead(2) / 10.0;
     ki = analogRead(1) / 100.0;
     kd = analogRead(0);
@@ -284,38 +279,6 @@ void loop()
   }
 }//END Loop
 
-
-
-
-//
-// Check to see if the IMU has settled down and is giving a steady heading.  
-// If it hasn't disable the go button.
-
-void CheckIMU(byte *Command, float  Heading)
-{
-  static int Init=1,Count;
-  static float oHeading;
-  
-  if(Init)
-  {
-      //If IMU not stable don't allow the robot to start navigating.
-      if(*Command == GO)
-        *Command = NONE;
-      
-      Count++;
-      if(Count==100)
-      {
-        Count = 0; 
-        if(abs(Heading - oHeading) < 1)
-        {
-          Init = 0;    
-           *Command = IMU_WARM;
-        }
-        else
-          oHeading = Heading;
-      }  
-  }
-}//END Check IMU
 
 //
 // A PID implementation; control an error with 3 constants and
@@ -342,9 +305,6 @@ void PID(float Hdg,float HdgTgt,int *Demand, float kP,float kI,float kD, byte Mo
   if(error>180)
     error -= 360;
   
-      
-  //http://brettbeauregard.com/blog/2011/04/improving-the-beginners-pid-introduction/
-
   /*How long since we last calculated*/
   unsigned long now = millis();    
   float timeChange = (float)(now - lastTime);       
@@ -376,7 +336,6 @@ void PID(float Hdg,float HdgTgt,int *Demand, float kP,float kI,float kD, byte Mo
 
 void  GetHeading(float *Heading)               
 {
-
   {
       //calc heading from IMU
       // reset interrupt flag and get INT_STATUS byte
@@ -414,9 +373,7 @@ void  GetHeading(float *Heading)
           *Heading = (ypr[0] * 180/M_PI) + 180;
   
       }//done
-  }
-  
- 
+  } 
 }//END GetHeading
 
 
@@ -446,96 +403,5 @@ void LimitFloat(float *x,float Min, float Max)
     *x = Min;
 
 }//END LimitInt
-
-
-//
-// Drive port / stbd motors fwd or backwards using PWM.
-// A breakout calc is needed to linearise the response since
-// torque is proportional to voltage on a DC mottor the wheels
-// don't move on the lower 25% range.
-// 
-// A L9110 IC controls the motors and 2 PWMs are used.  2 DOs control 
-// direction.
-// 
-// IA(DO) IB(PWM) Motor State 
-// L      L       Off 
-// H      L       Forward 
-// L      H       Reverse 
-// H      H       Off 
-//
-// Inputs
-// -----
-// DriveVal    +/-1000  
-//
-// Note
-// ----
-// Demand>     0  100 200 300 400 500 600 700 800 900 1000
-// Distance>  33  70  93  110 128 140 151 164* 168 168 168
-//
-// Motor demands are linear ish up to 700 with AAA hybrio batteries.
-// For PID Distance = 400 and PID gets 300
-//
-void DriveMotors(int PDrive,int SDrive,byte Moving)
-{
-  int Mag;
-
-  if(!Moving)
-  {
-    PDrive = 0;
-    SDrive = 0;
-  }
-  
-  LimitInt(&PDrive, -1000,1000);
-  LimitInt(&SDrive, -1000,1000);
-
-  // ========= Port drive =========
-  Mag = abs(PDrive) * .205 + 45;
- if(PDrive == 0) Mag = 0;
-  
-  if(PDrive < 0)
-  {
-    // fwds
-    digitalWrite(9, HIGH);
-    analogWrite(3, 255 - Mag);
-  }
-  else
-  {
-    // backwards
-    digitalWrite(9, LOW);
-    analogWrite(3, Mag);
-  } 
-
-  // ========= Stbd drive =========
-  Mag = abs(SDrive) * .205 + 45;
-  if(SDrive == 0) Mag = 0;
-  
-  if(SDrive < 0)
-  {
-    // 
-    digitalWrite(10, HIGH);
-    analogWrite(11, 255 - Mag); //you haave to do this; look at the truth table
-  }
-  else
-  {
-    // fwd
-    digitalWrite(10, LOW);
-    analogWrite(11, Mag);
-  }  
-}//END DriveMotors
-
-//
-// Check if a b & c are in range
-// This is a comparisson function for cleaning up analog inputs
-
-byte InRange(int hi, int lo, int a, int b, int c)
-{
-  if(a<hi && a>lo)
-    if(b<hi && b>lo)
-      if(c<hi && c>lo)
-        return(1);
-
-  return(0);
-}//END InRange
-
 
 

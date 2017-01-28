@@ -94,30 +94,31 @@ void setup() {
     
     //Serial.println("Updating internal sensor offsets...");
     // -76	-2359	1688	0	0	0
-  /*  Serial.print(accelgyro.getXAccelOffset()); Serial.print("\t"); // -76
+    Serial.print(accelgyro.getXAccelOffset()); Serial.print("\t"); // -76
     Serial.print(accelgyro.getYAccelOffset()); Serial.print("\t"); // -2359
     Serial.print(accelgyro.getZAccelOffset()); Serial.print("\t"); // 1688
+    
     Serial.print(accelgyro.getXGyroOffset()); Serial.print("\t"); // 0
     Serial.print(accelgyro.getYGyroOffset()); Serial.print("\t"); // 0
     Serial.print(accelgyro.getZGyroOffset()); Serial.print("\t"); // 0
-    Serial.print("\n");*/
+    Serial.print("\n");
     // KL
     //1. set these to 0
+    //   mount IMU as it is intended to be mounted and don't move it.
     //2. enter pseudo random #s till they are all 0 in terminal execpt accel Z (16384)
-    //   note - #s are'nt just the inverse of what's on the terminal window. 
-    accelgyro.setXGyroOffset(66);
-    accelgyro.setYGyroOffset(25);
-    accelgyro.setZGyroOffset(45);
-    accelgyro.setXAccelOffset(-1640);
-    accelgyro.setYAccelOffset(1240);
-    accelgyro.setZAccelOffset(1200);
-   /* Serial.print(accelgyro.getXAccelOffset()); Serial.print("\t"); // -76
-    Serial.print(accelgyro.getYAccelOffset()); Serial.print("\t"); // -2359
-    Serial.print(accelgyro.getZAccelOffset()); Serial.print("\t"); // 1688
-    Serial.print(accelgyro.getXGyroOffset()); Serial.print("\t"); // 0
-    Serial.print(accelgyro.getYGyroOffset()); Serial.print("\t"); // 0
-    Serial.print(accelgyro.getZGyroOffset()); Serial.print("\t"); // 0
-    Serial.print("\n");*/
+    //   note - #s are'nt just the inverse of what's on the terminal window you have to iteratively work them out, for gyro x,z then Z doing multiple 'guesses'
+    //   when close paste to excel and get avg to converge on optimum note you need to leave it longer to warm up towards end to converge on optimum
+    //3. Converge - wait till mean is obviously near zero on SM, then leve it 30s, paste #s into excel and check avg. tweak as required +/-1 incs. - 15 min process
+    
+    
+    accelgyro.setXAccelOffset(1620);
+    accelgyro.setYAccelOffset(1411);
+    accelgyro.setZAccelOffset(1440);//16384
+   
+    accelgyro.setXGyroOffset(161);
+    accelgyro.setYGyroOffset(2);
+    accelgyro.setZGyroOffset(24);
+    //Serial.print("\n");*/
     
 
     // configure Arduino LED for
