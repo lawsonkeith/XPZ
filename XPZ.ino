@@ -1,16 +1,9 @@
 /*
  * 
- * @file BBot.ino
+ * @file XPZ.ino
  *
- * K Lawson 2015
+ * K Lawson 2017
  *
- * Bee Bot / Big Trak robot clone.
- *
- * A programmable robot using 9110 H Bridge and MPU 6050 IMU
- * The robot can be programmed with a keypad and follows a 
- * programmed path.  The IMU prevents drift and allows for
- * precise direction changes without encoders. 
- * A sharp IR range finder
  *
  */
 
@@ -37,8 +30,17 @@ MPU6050 mpu;
 //   external interrupt #0 pin. On the Arduino Uno and Mega 2560, this is
 //   digital I/O pin 2.
 
+// GPIO
+#define   LED_PIN  13 
+#define   BTN      12
+// PWM
+#define   MTR_A    10
+#define   MTR_B    11
+// AI
+#define   KP       2
+#define   KI       1 
+#define   KD       0
 
-#define LED_PIN 13 // (Arduino is 13, Teensy is 11, Teensy++ is 6)
 bool blinkState = false;
 
 // MPU control/status vars
@@ -57,17 +59,6 @@ VectorInt16 aaWorld;    // [x, y, z]            world-frame accel sensor measure
 VectorFloat gravity;    // [x, y, z]            gravity vector
 float euler[3];         // [psi, theta, phi]    Euler angle container
 float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
-
-// packet structure for InvenSense teapot demo
-uint8_t teapotPacket[14] = { '$', 0x02, 0,0, 0,0, 0,0, 0,0, 0x00, 0x00, '\r', '\n' };
-
-//
-// Define commands that can be executed, first 2 are internally generated
-#define NONE 0
-#define IMU_WARM 1
-#define CRASH 2
-#define CANCEL 3
-
 
 //
 // ISR
@@ -154,11 +145,32 @@ void setup() {
     // configure LED for output
     pinMode(LED_PIN, OUTPUT); //LED
 
-    pinMode(11,OUTPUT); //spkr
-    pinMode(10,OUTPUT); //PWM Ctrl Dir
+    pinMode(MTR_A    ,OUTPUT); 
+    pinMode(MTR_B    ,OUTPUT); 
     
-    pinMode(12,INPUT_PULLUP);
+    pinMode(BTN,INPUT_PULLUP);
 
+    // INIT MODE
+    if( digitalRead(BTN) == 0){
+       Serial.println("PWM DIRECT DRIVE MODE, reset CPU to exit!");
+       int pota,potb;
+       
+       // drive PWM of pots
+       do{
+         delay(250);
+         pota = analogRead(KP) / 4;
+         potb = analogRead(KI) / 4;
+         LimitInt(&pota,0,255);
+         LimitInt(&potb,0,255);
+         analogWrite(MTR_A,pota);
+         analogWrite(MTR_B,potb);
+         Serial.print("> ");
+         Serial.print(pota);
+         Serial.print(" , ");
+         Serial.println(potb);
+       }while(1);
+    }
+      
 }//END Setup
 
 
@@ -207,14 +219,14 @@ void loop()
       oHeading = Heading;
     }
     // Null motors
-    analogWrite(10,0);
-    analogWrite(11,0);
+    analogWrite(MTR_A,0);
+    analogWrite(MTR_B,0);
    
   }else{  
   // =====================================================
          
     // ==== Start / stop command processor ====
-    btn = digitalRead(12); 
+    btn = digitalRead(BTN); 
     if((btn == 0) && (old_btn == 1) ) {
       if(Moving)
         HeadingTgt+=30;
@@ -247,17 +259,17 @@ void loop()
       LimitInt(&mtr_b,0,100);
     }
     
-    analogWrite(10,mtr_a);
-    analogWrite(11,mtr_b);
+    analogWrite(MTR_A,mtr_a);
+    analogWrite(MTR_B,mtr_b);
   }  
   // =====================================================
    
    
   // 1Hz  blink LED to indicate activity
   if(((SubLoop % 250) == 0) && (init ==0))  { 
-    kp = analogRead(2) / 10.0;
-    ki = analogRead(1) / 100.0;
-    kd = analogRead(0);
+    kp = analogRead(KP) / 10.0;
+    ki = analogRead(KI) / 100.0;
+    kd = analogRead(KD);
     Serial.print("\tHGG>  ");
     Serial.print(Heading);
     Serial.print(" , ");
