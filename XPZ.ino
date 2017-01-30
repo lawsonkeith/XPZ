@@ -40,7 +40,10 @@ MPU6050 mpu;
 #define   KP       2
 #define   KI       1 
 #define   KD       0
-
+// ESC Vals
+#define PULSE_MIN   186  //1500us
+#define PULSE_MAX   236  //1900
+//
 bool blinkState = false;
 
 // MPU control/status vars
@@ -157,20 +160,30 @@ void setup() {
        
        // drive PWM of pots
        do{
-         delay(250);
+         delay(500);
+         Serial.print("WARNING!! SAFE VALS> ");
+         Serial.print(PULSE_MIN);
+         Serial.print("-");
+         Serial.print(PULSE_MAX);
          pota = analogRead(KP) / 4;
          potb = analogRead(KI) / 4;
          LimitInt(&pota,0,255);
          LimitInt(&potb,0,255);
          analogWrite(MTR_A,pota);
          analogWrite(MTR_B,potb);
-         Serial.print("> ");
+         Serial.print("        A> ");
          Serial.print(pota);
-         Serial.print(" , ");
+         Serial.print("   , B> ");
          Serial.println(potb);
        }while(1);
     }
-      
+    /* setup ESC pulse widths
+    analogWrite(10,186);//1500us
+    analogWrite(10,236);//1900us
+    
+    analogWrite(11,186);//1500us
+    analogWrite(11,236);//1900us
+    */
 }//END Setup
 
 
@@ -244,23 +257,28 @@ void loop()
     // ==== motor drive =========
     
     // Do rotation kinematics...
-    // demand = +/- 1000
-    mtr_a = 30; // fixed rate descent
-    mtr_a += Demand / 50.0; // +/-20
-    mtr_b = 30; // fixed rate descent
-    mtr_b -= Demand / 50.0;
+    // demand = +/- 1000 from PID
+    // put in descent then put to 0-500 range 
+    mtr_a = 50;        // fixed rate descent 0-300
+    mtr_a += Demand/5; // PID action is +/-200
     
+    mtr_b = 50;       
+    mtr_b -= Demand/5; 
+ 
+    // normalise to 0-50   
+    mtr_a /= 10;        // put in range 0-50 (50 is PWM # controllable steps for this ESC)
+    mtr_b /= 10;        
+    LimitInt(&mtr_a,0,50); // hard clamp just in case
+    LimitInt(&mtr_b,0,50);
+ 
     // impose pwr limit
     if(!Moving){
       mtr_a = 0;
       mtr_b = 0; // f
-    }else{
-      LimitInt(&mtr_a,0,100);
-      LimitInt(&mtr_b,0,100);
     }
     
-    analogWrite(MTR_A,mtr_a);
-    analogWrite(MTR_B,mtr_b);
+    analogWrite(MTR_A,mtr_a + PULSE_MIN);
+    analogWrite(MTR_B,mtr_b + PULSE_MIN);
   }  
   // =====================================================
    
@@ -415,5 +433,6 @@ void LimitFloat(float *x,float Min, float Max)
     *x = Min;
 
 }//END LimitInt
+
 
 
