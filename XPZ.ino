@@ -197,7 +197,8 @@ void loop()
   static int    SubLoop, Demand;
   static unsigned long   checktime;
   static byte   Moving;
-  static float  Heading,HeadingTgt,oHeading=-999999,kp,ki,kd;
+  static float  Heading,HeadingTgt,oHeading=-999999;
+  static double kp,ki,kd;
   static bool btn,old_btn,init=1;
   int mtr_a,mtr_b;
   SubLoop++;
@@ -259,10 +260,10 @@ void loop()
     // Do rotation kinematics...
     // demand = +/- 1000 from PID
     // put in descent then put to 0-500 range 
-    mtr_a = 50;        // fixed rate descent 0-300
+    mtr_a = 150;        // fixed rate descent 0-300
     mtr_a += Demand/5; // PID action is +/-200
     
-    mtr_b = 50;       
+    mtr_b = 150;       
     mtr_b -= Demand/5; 
  
     // normalise to 0-50   
@@ -286,8 +287,8 @@ void loop()
   // 1Hz  blink LED to indicate activity
   if(((SubLoop % 250) == 0) && (init ==0))  { 
     kp = analogRead(KP) / 10.0;
-    ki = analogRead(KI) / 100.0;
-    kd = analogRead(KD);
+    ki = analogRead(KI) / 1024.0;
+    kd = analogRead(KD) * 100;
     Serial.print("\tHGG>  ");
     Serial.print(Heading);
     Serial.print(" , ");
@@ -299,9 +300,9 @@ void loop()
     Serial.print(" , ");
     Serial.print(kd);
     Serial.print("\t\tMOTOR>  ");
-    Serial.print(mtr_a);
+    Serial.print(mtr_a+PULSE_MIN);
     Serial.print(" , ");
-    Serial.println(mtr_b);
+    Serial.println(mtr_b+PULSE_MIN);
     
     
     blinkState = !blinkState;
@@ -310,45 +311,41 @@ void loop()
 }//END Loop
 
 
+
 //
 // A PID implementation; control an error with 3 constants and
 // of 350 as a result of the motor tests.  If not moving do nothing.
-
-void PID(float Hdg,float HdgTgt,int *Demand, float kP,float kI,float kD, byte Moving)                                                 
+void PID(float Hdg,float HdgTgt,int *Demand, double kP,double kI,double kD, byte Moving)                                                 
 {
   static unsigned long lastTime; 
-  static float Output; 
-  static float errSum, lastErr,error ; 
+  static double Output, Iterm; 
+  static double lastErr,error ; 
 
   // IF not moving then 
-  if(!Moving)
-  {
-        errSum = 0;
-        lastErr = 0;
-        return;
-  }
-
-  //error correction for angular overlap
+  if(!Moving) {
+    Iterm = 0;
+    lastErr = 0;
+    lastTime =  millis();    
+    return;
+  } 
+  /*How long since we last calculated*/
+  unsigned long now = millis();    
+  unsigned long timeChange = (float)(now - lastTime);       
+  /*Compute all the working error variables*/
   error = Hdg-HdgTgt;
   if(error<180)
     error += 360;
   if(error>180)
-    error -= 360;
+    error -= 360; 
   
-  /*How long since we last calculated*/
-  unsigned long now = millis();    
-  float timeChange = (float)(now - lastTime);       
-  /*Compute all the working error variables*/
-  //float error = Setpoint - Input;    
-  errSum += (error * timeChange);   
-
-  //integral windup guard
-  LimitFloat(&errSum, -300, 300);
-
-  float dErr = (error - lastErr) / timeChange;       
-
+  Iterm += (kI * error * timeChange); 
+  LimitDouble(&Iterm,-1000,1000);
+    
+  double dErr = (error - lastErr) / timeChange;       
+  
   /*Compute PID Output*/
-  *Demand = kP * error + kI * errSum + kD * dErr;       
+  *Demand = kP * error + Iterm + kD * dErr;  
+
   /*Remember some variables for next time*/
   lastErr = error;    
   lastTime = now; 
@@ -357,6 +354,7 @@ void PID(float Hdg,float HdgTgt,int *Demand, float kP,float kI,float kD, byte Mo
   LimitInt(Demand, -1000, 1000);
 
 }//END getPID
+
 
 
 //
@@ -432,7 +430,16 @@ void LimitFloat(float *x,float Min, float Max)
   if(*x < Min)
     *x = Min;
 
-}//END LimitInt
+}//END LimitFloat
 
 
+
+void LimitDouble(double *x,double Min, double Max)
+{
+  if(*x > Max)
+    *x = Max;
+  if(*x < Min)
+    *x = Min;
+
+}//END LimitFloat
 
