@@ -159,7 +159,7 @@ void setup() {
        int pota,potb;
        
        // drive PWM of pots
-       do{
+       do{ 
          delay(500);
          Serial.print("WARNING!! SAFE VALS> ");
          Serial.print(PULSE_MIN);
@@ -286,9 +286,14 @@ void loop()
    
   // 1Hz  blink LED to indicate activity
   if(((SubLoop % 250) == 0) && (init ==0))  { 
+     HeadingTgt+=2;
+     if(HeadingTgt>=360.0)
+           HeadingTgt=0;
+           
+    // scale to pot input
     kp = analogRead(KP) / 10.0;
-    ki = analogRead(KI) / 1024.0;
-    kd = analogRead(KD) * 100;
+    ki = analogRead(KI) / 1000.0;
+    kd = analogRead(KD) * 5;
     Serial.print("\tHGG>  ");
     Serial.print(Heading);
     Serial.print(" , ");
@@ -442,4 +447,5 @@ void LimitDouble(double *x,double Min, double Max)
     *x = Min;
 
 }//END LimitFloat
+
 
